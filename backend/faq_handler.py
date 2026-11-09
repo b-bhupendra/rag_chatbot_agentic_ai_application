@@ -5,10 +5,12 @@ try:
     from backend.config import settings
     from backend.agentic_tools import _model, embed
     from backend.setup_db import ingest_faq_file, get_chroma_client
+    from backend.logger import log_info, log_success, log_warning, log_error
 except ModuleNotFoundError:
     from config import settings
     from agentic_tools import _model, embed
     from setup_db import ingest_faq_file, get_chroma_client
+    from logger import log_info, log_success, log_warning, log_error
 
 
 # Initialize cached _model instance using prompt loaded via settings

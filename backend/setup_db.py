@@ -1,16 +1,18 @@
 import hashlib
 import sqlite3
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import Optional, Union
 import pandas as pd
 import chromadb
 
 try:
     from backend.config import settings
     from backend.agentic_tools import embed
+    from backend.logger import log_info, log_success, log_warning, log_error
 except ModuleNotFoundError:
     from config import settings
     from agentic_tools import embed
+    from logger import log_info, log_success, log_warning, log_error
 
 
 def get_file_hash(file_path: Union[str, Path]) -> str:
@@ -21,6 +23,10 @@ def get_file_hash(file_path: Union[str, Path]) -> str:
             hasher.update(chunk)
     return hasher.hexdigest()
 
+
+# ==========================================
+# 1. ChromaDB Vector Database Ingestion (FAQ)
+# ==========================================
 
 def get_chroma_client() -> chromadb.PersistentClient:
     """
@@ -59,25 +65,25 @@ def ingest_faq_file(
     current_hash = get_file_hash(path)
     filename = path.name
 
-    # Check if this file has already been ingested
+    # Check if this file has already been ingested with the same hash
     existing = collection.get(where={"source_file": filename})
     if existing["ids"] and not force_reload:
         first_meta = existing["metadatas"][0] if existing["metadatas"] else {}
         if first_meta.get("file_hash") == current_hash:
-            print(f"ℹ️ File '{filename}' is already ingested with matching hash. Skipping re-index.")
+            log_info(f"File '{filename}' is already indexed in collection '{collection_name}' with matching hash. Skipping.")
             return collection
         else:
-            print(f"🔄 File '{filename}' was modified. Updating existing records...")
+            log_info(f"File '{filename}' was modified. Refreshing records in collection '{collection_name}'...")
             collection.delete(ids=existing["ids"])
 
-    print(f"📥 Ingesting FAQ records from: {path}...")
+    log_info(f"Ingesting FAQ records from: {path}...")
     df = pd.read_csv(path)
     if "question" not in df.columns or "answer" not in df.columns:
         raise ValueError(f"File {filename} must contain 'question' and 'answer' columns.")
 
     documents = df["question"].astype(str).tolist()
     answers = df["answer"].astype(str).tolist()
-    
+
     # Prefix IDs with filename to allow multiple files seamlessly
     ids = [f"{filename}_{i}" for i in range(len(df))]
     metadatas = [
@@ -98,8 +104,89 @@ def ingest_faq_file(
         metadatas=metadatas,
         ids=ids,
     )
-    print(f"✅ Ingested {len(df)} FAQ items into collection '{collection_name}'. Total: {collection.count()}")
+    log_success(f"Ingested {len(df)} FAQ items into collection '{collection_name}'. Total: {collection.count()}")
     return collection
+
+
+# ==========================================
+# 2. SQLite Database Ingestion (Product Catalog & Arbitrary CSVs)
+# ==========================================
+
+def _ensure_sqlite_metadata_table(conn: sqlite3.Connection) -> None:
+    """Creates internal metadata table to track file hashes for SQLite tables."""
+    cursor = conn.cursor()
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS _ingestion_metadata (
+        table_name TEXT PRIMARY KEY,
+        source_file TEXT,
+        file_hash TEXT,
+        row_count INTEGER,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    conn.commit()
+
+
+def ingest_sqlite_table(
+    csv_path: Union[str, Path],
+    table_name: str = "product",
+    force_reload: bool = False,
+) -> Path:
+    """
+    Extensible and lean SQLite ingestion function:
+    - Ingests ANY CSV file into any specified table in db.sqlite.
+    - Uses SHA-256 hash tracking via _ingestion_metadata to avoid re-reading unmodified files.
+    - If modified or new, replaces table and updates metadata hash.
+    """
+    path = Path(csv_path)
+    if not path.is_absolute():
+        path = settings.BASE_DIR / path
+
+    if not path.exists():
+        raise FileNotFoundError(f"CSV file not found: {path}")
+
+    db_path = settings.SQLITE_DB_PATH
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    current_hash = get_file_hash(path)
+    filename = path.name
+
+    conn = sqlite3.connect(db_path)
+    try:
+        _ensure_sqlite_metadata_table(conn)
+        cursor = conn.cursor()
+
+        # Check if table already exists with matching hash
+        cursor.execute(
+            "SELECT file_hash, row_count FROM _ingestion_metadata WHERE table_name = ?",
+            (table_name,),
+        )
+        meta_row = cursor.fetchone()
+
+        if meta_row and not force_reload:
+            saved_hash, row_count = meta_row
+            if saved_hash == current_hash:
+                log_info(f"SQLite table '{table_name}' is already up-to-date ({row_count} rows, hash matched). Skipping.")
+                return db_path
+            else:
+                log_info(f"File '{filename}' modified. Refreshing SQLite table '{table_name}'...")
+
+        # Ingest CSV into SQLite table
+        log_info(f"Loading '{filename}' into SQLite table '{table_name}'...")
+        df = pd.read_csv(path)
+        df.to_sql(table_name, conn, if_exists="replace", index=False)
+
+        # Update metadata table
+        cursor.execute("""
+        INSERT OR REPLACE INTO _ingestion_metadata (table_name, source_file, file_hash, row_count, updated_at)
+        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """, (table_name, filename, current_hash, len(df)))
+        conn.commit()
+
+        log_success(f"Loaded {len(df)} records into SQLite table '{table_name}' at {db_path}.")
+        return db_path
+    finally:
+        conn.close()
 
 
 def ingest_sqlite_products(
@@ -107,55 +194,27 @@ def ingest_sqlite_products(
     table_name: str = "product",
     force_reload: bool = False,
 ) -> Path:
+    """Convenience alias for ingesting the product catalog into SQLite."""
+    return ingest_sqlite_table(csv_path=csv_path, table_name=table_name, force_reload=force_reload)
+
+
+def setup_database(force_reload: bool = False) -> Path:
     """
-    Extensible product catalog ingestion into SQLite:
-    - Reads product CSV and creates/updates SQLite table.
-    - If table already populated, skips re-loading unless force_reload is True.
+    Initializes the SQLite database with products.
+    Backward-compatible entry point for the tutorial interface.
     """
-    path = Path(csv_path)
-    if not path.is_absolute():
-        path = settings.BASE_DIR / path
-
-    if not path.exists():
-        raise FileNotFoundError(f"Product CSV file not found: {path}")
-
-    db_path = settings.SQLITE_DB_PATH
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-
-    # Check if table exists and has rows
-    cursor.execute(
-        "SELECT count(name) FROM sqlite_master WHERE type='table' AND name=?",
-        (table_name,),
-    )
-    table_exists = cursor.fetchone()[0] > 0
-
-    if table_exists and not force_reload:
-        cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
-        row_count = cursor.fetchone()[0]
-        if row_count > 0:
-            print(f"ℹ️ SQLite table '{table_name}' already exists with {row_count} rows. Skipping re-load.")
-            conn.close()
-            return db_path
-
-    print(f"📥 Loading products into SQLite table '{table_name}' from: {path}...")
-    df = pd.read_csv(path)
-    df.to_sql(table_name, conn, if_exists="replace", index=False)
-    conn.close()
-    print(f"✅ Loaded {len(df)} products into '{table_name}' at {db_path}.")
-    return db_path
+    log_info("Setting up SQLite product database...")
+    return ingest_sqlite_products(force_reload=force_reload)
 
 
-def init_all_databases(force_reload: bool = False):
+def init_all_databases(force_reload: bool = False) -> None:
     """
     Initializes both ChromaDB persistent storage and SQLite product catalog.
     """
-    print("🚀 Initializing Application Databases...")
+    log_info("Initializing all application databases (ChromaDB + SQLite)...")
     ingest_faq_file(force_reload=force_reload)
     ingest_sqlite_products(force_reload=force_reload)
-    print("✨ All databases are initialized and ready.")
+    log_success("All databases are initialized and ready.")
 
 
 if __name__ == "__main__":
