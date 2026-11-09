@@ -1,5 +1,4 @@
 from typing import Optional
-from pathlib import Path
 import chromadb
 
 try:
@@ -11,18 +10,10 @@ except ModuleNotFoundError:
     from agentic_tools import _model, embed
     from setup_db import ingest_faq_file, get_chroma_client
 
-FAQ_PROMPT_TEMPLATE = """You are a helpful customer service AI for an e-commerce platform.
-Answer the user query based ONLY on the provided FAQ context.
 
-FAQ Context:
-{context}
-
-User Question: {user_query}
-Answer: """
-
-# Initialize cached _model instance for FAQ synthesis
+# Initialize cached _model instance using prompt loaded via settings
 faq_model = _model(
-    template=FAQ_PROMPT_TEMPLATE,
+    template=settings.FAQ_PROMPT,
     invoke_with=["context", "user_query"],
 )
 
@@ -64,7 +55,7 @@ def handle_faq_query(user_query: str, use_llm: bool = True) -> str:
     """
     Main entry function for FAQ retrieval:
     - If use_llm=False: returns direct ChromaDB answer in ~5ms.
-    - If use_llm=True: synthesizes friendly answer using centralized Gemini model.
+    - If use_llm=True: synthesizes friendly answer using centralized Gemini model with settings.FAQ_PROMPT.
     """
     context = retrieve_faq_context(user_query)
     if not use_llm:

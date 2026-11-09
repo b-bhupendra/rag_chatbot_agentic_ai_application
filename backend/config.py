@@ -3,14 +3,23 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _load_prompt_file(file_path: Path) -> str:
+    """Helper to safely read prompt text from file."""
+    if file_path.exists():
+        return file_path.read_text(encoding="utf-8").strip()
+    return ""
+
+
 class Settings(BaseSettings):
     """
-    Centralized application configuration loaded from environment and .env file.
+    Centralized application configuration loaded from environment, .env file,
+    and external prompt templates.
     """
     # Base paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
     BACKEND_DIR: Path = Path(__file__).resolve().parent
     DATASETS_DIR: Path = BASE_DIR / "datasets"
+    PROMPTS_DIR: Path = BASE_DIR / "prompts"
 
     # API Keys
     GOOGLE_API_KEY: str = Field(..., description="Google Gemini API Key")
@@ -33,6 +42,19 @@ class Settings(BaseSettings):
     # SQLite Database
     SQLITE_DB_PATH: Path = BACKEND_DIR / "db.sqlite"
 
+    # Dynamic Prompts (Loaded from prompts/ folder)
+    @property
+    def FAQ_PROMPT(self) -> str:
+        return _load_prompt_file(self.PROMPTS_DIR / "faq_prompt.txt")
+
+    @property
+    def SQL_GENERATION_PROMPT(self) -> str:
+        return _load_prompt_file(self.PROMPTS_DIR / "sql_generation_prompt.txt")
+
+    @property
+    def SQL_SYNTHESIS_PROMPT(self) -> str:
+        return _load_prompt_file(self.PROMPTS_DIR / "sql_synthesis_prompt.txt")
+
     # Pydantic Settings configuration
     model_config = SettingsConfigDict(
         env_file=str(Path(__file__).resolve().parent.parent / ".env"),
@@ -43,4 +65,3 @@ class Settings(BaseSettings):
 
 # Centralized singleton instance
 settings = Settings()
-

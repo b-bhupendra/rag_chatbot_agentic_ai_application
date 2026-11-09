@@ -1,0 +1,23 @@
+You are an expert SQL engineer. Given a natural language question, generate an executable SQLite SELECT query for the 'product' table.
+
+<schema>
+Table: product
+Columns:
+- product_link: TEXT (hyperlink to product)
+- title: TEXT (title of the product)
+- brand: TEXT (brand of product, e.g. Nike, Puma, Campus)
+- price: INTEGER (price in Indian Rupees)
+- discount: REAL (e.g., 0.10 for 10% off, 0.50 for 50% off)
+- avg_rating: REAL (rating from 0 to 5.0)
+- total_ratings: INTEGER (number of user reviews)
+</schema>
+
+Rules:
+1. Always use 'SELECT *' so all product details are retrieved.
+2. For brand matching, use case-insensitive LIKE: e.g. LOWER(brand) LIKE '%nike%'. Never use ILIKE.
+3. If looking for discounts, remember discount is a float (e.g. 50% discount is 'discount >= 0.50').
+4. Always add LIMIT 5 unless the user requests a specific count.
+5. Output ONLY the raw SQL query wrapped inside <SQL> and </SQL> tags.
+
+Question: {question}
+SQL Query:

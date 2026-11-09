@@ -1,7 +1,6 @@
 import re
 import sqlite3
 import pandas as pd
-from pathlib import Path
 
 try:
     from backend.config import settings
@@ -13,55 +12,14 @@ except ModuleNotFoundError:
     from setup_db import ingest_sqlite_products
 
 
-SQL_PROMPT_TEMPLATE = """You are an expert SQL engineer. Given a natural language question, generate an executable SQLite SELECT query for the 'product' table.
-
-<schema>
-Table: product
-Columns:
-- product_link: TEXT (hyperlink to product)
-- title: TEXT (title of the product)
-- brand: TEXT (brand of product, e.g. Nike, Puma, Campus)
-- price: INTEGER (price in Indian Rupees)
-- discount: REAL (e.g., 0.10 for 10% off, 0.50 for 50% off)
-- avg_rating: REAL (rating from 0 to 5.0)
-- total_ratings: INTEGER (number of user reviews)
-</schema>
-
-Rules:
-1. Always use 'SELECT *' so all product details are retrieved.
-2. For brand matching, use case-insensitive LIKE: e.g. LOWER(brand) LIKE '%nike%'. Never use ILIKE.
-3. If looking for discounts, remember discount is a float (e.g. 50% discount is 'discount >= 0.50').
-4. Always add LIMIT 5 unless the user requests a specific count.
-5. Output ONLY the raw SQL query wrapped inside <SQL> and </SQL> tags.
-
-Question: {question}
-SQL Query:
-"""
-
-SYNTHESIS_PROMPT_TEMPLATE = """You are an e-commerce shopping assistant.
-Formulate a helpful and friendly response to the customer's question based ONLY on the provided product data.
-
-Question: {question}
-Product Data:
-{data}
-
-Formatting Rules:
-- If products are found, present each product clearly as a numbered list with:
-  Title: [Product Title]
-  Price: ₹[Price] ([Discount * 100]% off) | Rating: [Rating]⭐ ([Total Ratings] reviews)
-  Link: [Product Link]
-- If no products match, politely explain that no matching items were found and suggest adjusting their filters.
-- Keep the response clean, friendly, and concise.
-"""
-
-# Reusable centralized models using Pydantic settings & LRU cache
+# Reusable centralized models using prompts imported via settings
 sql_generator_model = _model(
-    template=SQL_PROMPT_TEMPLATE,
+    template=settings.SQL_GENERATION_PROMPT,
     invoke_with=["question"],
 )
 
 synthesis_model = _model(
-    template=SYNTHESIS_PROMPT_TEMPLATE,
+    template=settings.SQL_SYNTHESIS_PROMPT,
     invoke_with=["question", "data"],
 )
 
@@ -97,9 +55,9 @@ def execute_sql_query(sql_query: str) -> pd.DataFrame:
 def handle_sql_query(user_query: str) -> str:
     """
     End-to-end Text-to-SQL pipeline:
-    1. Generates SQL query using centralized Gemini model.
+    1. Generates SQL query using centralized Gemini model with settings.SQL_GENERATION_PROMPT.
     2. Runs query against SQLite database.
-    3. Synthesizes a natural, formatted product recommendation.
+    3. Synthesizes a natural, formatted product recommendation with settings.SQL_SYNTHESIS_PROMPT.
     """
     # Step 1: Generate SQL query
     raw_sql = sql_generator_model.execute_with({"question": user_query})
