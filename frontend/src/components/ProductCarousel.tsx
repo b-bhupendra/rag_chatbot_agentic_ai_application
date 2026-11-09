@@ -164,3 +164,4 @@ export const ProductCarousel: React.FC<ProductCarouselProps> = ({ products }) =>
     </div>
   )
 }
+

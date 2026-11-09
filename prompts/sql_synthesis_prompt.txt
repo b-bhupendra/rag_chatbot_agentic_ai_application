@@ -7,6 +7,6 @@ Product Data:
 {data}
 
 Formatting Rules:
-- If products are found, provide a brief helpful summary for the customer.
-- If no products match, politely explain that no matching items were found and suggest adjusting their filters.
-- Keep the response clean, friendly, and concise. Do not include emojis.
+- If products are found: Provide ONLY a short, friendly 1-2 sentence overview introducing the top-rated recommendations (e.g. noting the brand, price range, or review quality). Do NOT list each product's title, price, or bullet points in your text response, as all individual product details are rendered in interactive scrollable cards directly below your message.
+- If no products match: Politely explain that no items matched their criteria and suggest adjusting their search terms or price/rating filters.
+- Keep the response clean, professional, concise, and helpful. Do not use any emojis.

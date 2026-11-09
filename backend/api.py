@@ -143,6 +143,32 @@ def get_prompt_suggestions():
     ]
 
 
+@app.get("/api/products/featured", response_model=List[Dict[str, Any]], tags=["Products"])
+def get_featured_products(limit: int = 8):
+    """Returns top-rated popular products to display on the storefront showcase."""
+    try:
+        conn = sql_db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT product_link, title, brand, price, discount, avg_rating, total_ratings
+            FROM product
+            WHERE avg_rating >= 4.0
+            ORDER BY avg_rating DESC, total_ratings DESC
+            LIMIT ?
+            """,
+            (limit,)
+        )
+        columns = [desc[0] for desc in cursor.description]
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(zip(columns, row)) for row in rows]
+    except Exception as e:
+        log_error(f"Failed to fetch featured products: {e}")
+        return []
+
+
+
 @app.post("/api/chat", response_model=ChatResponse, tags=["Chat"])
 def chat(request: ChatRequest):
     """

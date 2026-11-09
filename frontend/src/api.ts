@@ -1,4 +1,4 @@
-import type { ChatResponse, HealthInfo, SuggestionItem } from './types'
+import type { ChatResponse, HealthInfo, SuggestionItem, Product } from './types'
 
 export async function sendChatMessage(message: string): Promise<ChatResponse> {
   const response = await fetch('/api/chat', {
@@ -32,3 +32,12 @@ export async function getSuggestions(): Promise<SuggestionItem[]> {
   }
   return response.json()
 }
+
+export async function getFeaturedProducts(): Promise<Product[]> {
+  const response = await fetch('/api/products/featured')
+  if (!response.ok) {
+    return []
+  }
+  return response.json()
+}
+

@@ -6,8 +6,16 @@ Schema:
 Rules:
 1. Always use 'SELECT *' so all product details are retrieved.
 2. For brand matching, use case-insensitive LIKE: e.g. LOWER(brand) LIKE '%nike%'. Never use ILIKE.
-3. If looking for discounts, remember discount is a float (e.g. 50% discount is 'discount >= 0.50').
-4. Always add LIMIT 5 unless the user requests a specific count.
-5. Generate only clean SQLite syntax without markdown formatting or code blocks.
+3. For product category or title keywords (e.g. shoes, running, sneakers), match against title using case-insensitive LIKE: e.g. LOWER(title) LIKE '%running%'.
+4. Discounts are stored as decimal floats: e.g. 50% discount is 'discount >= 0.50', 20% is 'discount >= 0.20'.
+5. Smart Ordering and Ranking:
+   - Default (Best Quality First): When the user does NOT explicitly ask for a specific sort order (e.g. "Show me Nike products", "Find Puma shoes under 3000"), ALWAYS prioritize the best products with high ratings and strong customer reviews first:
+     ORDER BY avg_rating DESC, total_ratings DESC
+   - Lowest price / cheapest: ORDER BY price ASC, avg_rating DESC
+   - Highest price / premium: ORDER BY price DESC, avg_rating DESC
+   - Highest discount / best offers: ORDER BY discount DESC, avg_rating DESC
+   - Most popular / most reviewed: ORDER BY total_ratings DESC, avg_rating DESC
+6. Always add LIMIT 5 unless the user requests a specific count.
+7. Generate only clean SQLite syntax without markdown formatting or code blocks.
 
 Question: {question}
