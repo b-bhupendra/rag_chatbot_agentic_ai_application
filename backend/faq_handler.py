@@ -1,103 +1,79 @@
-import os
+from typing import Optional
+from pathlib import Path
 import chromadb
-from chromadb.utils import embedding_functions
-import pandas as pd
-from dotenv import load_dotenv
-from sentence_transformers import SentenceTransformer
-# LangChain & Google GenAI Imports
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_core.prompts import PromptTemplate
-# Load environment variables
-load_dotenv()
 
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-chroma_client = chromadb.Client()
+try:
+    from backend.config import settings
+    from backend.agentic_tools import _model, embed
+    from backend.setup_db import ingest_faq_file, get_chroma_client
+except ModuleNotFoundError:
+    from config import settings
+    from agentic_tools import _model, embed
+    from setup_db import ingest_faq_file, get_chroma_client
 
-def ingest_faq_data(csv_path="datasets/faq_data.csv"):
-    """
-    Ingests FAQ questions into ChromaDB collection.
-    Only questions are stored as embeddings; answers are kept in metadata.
-    Avoids re-ingestion if data is already present.
-    """
-    collection = chroma_client.get_or_create_collection(name="faq_collection")
-    if collection.count() > 0:
-        return collection
+FAQ_PROMPT_TEMPLATE = """You are a helpful customer service AI for an e-commerce platform.
+Answer the user query based ONLY on the provided FAQ context.
 
-    df = pd.read_csv(csv_path)
-    documents = df["question"].tolist()
-    metadatas = [{"answer": ans} for ans in df["answer"].tolist()]
-    ids = [f"id_{i}" for i in range(len(df))]
-    
-    embeddings = embedding_model.encode(documents).tolist()
-    
-    collection.add(
-        documents=documents,
-        embeddings=embeddings,
-        metadatas=metadatas,
-        ids=ids
-    )
-    return collection
+FAQ Context:
+{context}
 
-def retrieve_faq_context(query, collection, n_results=2):
+User Question: {user_query}
+Answer: """
+
+# Initialize cached _model instance for FAQ synthesis
+faq_model = _model(
+    template=FAQ_PROMPT_TEMPLATE,
+    invoke_with=["context", "user_query"],
+)
+
+
+def get_faq_collection(collection_name: Optional[str] = None) -> chromadb.Collection:
     """
-    Performs vector similarity search against stored questions to retrieve answers.
+    Retrieves or ingests the FAQ collection using persistent ChromaDB storage.
     """
-    query_embedding = embedding_model.encode([query]).tolist()
+    collection_name = collection_name or settings.FAQ_COLLECTION_NAME
+    client = get_chroma_client()
+    try:
+        coll = client.get_collection(name=collection_name)
+        if coll.count() > 0:
+            return coll
+    except Exception:
+        pass
+    # Ingest if not present
+    return ingest_faq_file(collection_name=collection_name)
+
+
+def retrieve_faq_context(query: str, collection: Optional[chromadb.Collection] = None, n_results: int = 2) -> str:
+    """
+    Performs vector similarity search against stored FAQ questions to retrieve matching answers.
+    """
+    collection = collection or get_faq_collection()
+    query_embedding = embed.encode([query]).tolist()
     results = collection.query(
         query_embeddings=query_embedding,
-        n_results=n_results
-    )
-    
-    matched_answers = [meta["answer"] for meta in results["metadatas"][0]]
-    return "\n".join(matched_answers)
-
-def generate_faq_response_langchain(user_query, context):
-    """
-    Uses LangChain and Google GenAI (Gemini) to synthesize a coherent response.
-    """
-    # 1. Initialize Google Gemini LLM via LangChain (thinking disabled for near-instant responses)
-    llm = ChatGoogleGenerativeAI(
-        model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
-        # temperature=0.2,
-        # api_version="v1beta",
-        # thinking_budget=0,
-        google_api_key=os.environ.get("GOOGLE_API_KEY")
+        n_results=n_results,
     )
 
-    # 2. Define a PromptTemplate using LangChain Core
-    prompt_template = PromptTemplate(
-        input_variables=["context", "user_query"],
-        template="""You are a helpful customer service AI for an e-commerce platform.
-                    Answer the user query based ONLY on the provided FAQ context.
-
-                    FAQ Context:
-                        {context}
-
-                    User Question: {user_query}
-                Answer: """
-    )
-
-    # 3. Create a Chain using the Runnable Pipe (|) operator
-    chain = prompt_template | llm
-
-    # 4. Invoke the chain with variables
-    response = chain.invoke({"context": context, "user_query": user_query})
-    
-    if isinstance(response.content, list):
-        return "".join(part.get("text", "") if isinstance(part, dict) else str(part) for part in response.content)
-    return response.content
+    if results["metadatas"] and results["metadatas"][0]:
+        matched_answers = [meta["answer"] for meta in results["metadatas"][0]]
+        return "\n".join(matched_answers)
+    return "No matching FAQ information found."
 
 
-def handle_faq_query(user_query):
+def handle_faq_query(user_query: str, use_llm: bool = True) -> str:
     """
-    Main entry function for the FAQ RAG Pipeline.
+    Main entry function for FAQ retrieval:
+    - If use_llm=False: returns direct ChromaDB answer in ~5ms.
+    - If use_llm=True: synthesizes friendly answer using centralized Gemini model.
     """
-    collection = ingest_faq_data()
-    context = retrieve_faq_context(user_query, collection)
-    return generate_faq_response_langchain(user_query, context)
+    context = retrieve_faq_context(user_query)
+    if not use_llm:
+        return context
+    return faq_model.execute_with({"context": context, "user_query": user_query})
 
 
 if __name__ == "__main__":
     test_query = "Can I pay when the product arrives at my house?"
     print("User Question:", test_query)
-    print("Chatbot Answer:", handle_faq_query(test_query))
+    print("Direct Answer (no LLM):", handle_faq_query(test_query, use_llm=False))
+    print("Synthesized Answer (with LLM):", handle_faq_query(test_query, use_llm=True))
