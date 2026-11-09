@@ -1,6 +1,6 @@
-import re
-from typing import Union, List, Dict, Any
+from typing import Union, List, Dict, Any, Optional
 import pandas as pd
+from pydantic import BaseModel, Field
 
 try:
     from backend.config import settings
@@ -14,45 +14,55 @@ except ModuleNotFoundError:
     from logger import log_info, log_success, log_warning, log_error
 
 
-# Reusable centralized models using prompts imported via settings
+class SQLQueryOutput(BaseModel):
+    """
+    Structured Pydantic schema for SQL query generation.
+    Using thought_process before query enables autoregressive reasoning (CoT)
+    to accurately map filters and column names.
+    """
+    thought_process: str = Field(
+        description="Brief step-by-step reasoning about required filters, sorting, and limit clauses based strictly on the schema."
+    )
+    query: str = Field(
+        description="The clean, executable SQLite SELECT query. Must start with SELECT and adhere strictly to the schema."
+    )
+
+
+# Structured model for query generation (zero regex required)
 sql_generator_model = _model(
     template=settings.SQL_GENERATION_PROMPT,
-    invoke_with=["question"],
+    invoke_with=["schema", "question"],
+    output_schema=SQLQueryOutput,
 )
 
+# Standard model for response synthesis
 synthesis_model = _model(
     template=settings.SQL_SYNTHESIS_PROMPT,
     invoke_with=["question", "data"],
 )
 
 
-def extract_sql_query(raw_output: str) -> str:
-    """Extracts raw SQL query from <SQL> tags or markdown code fences."""
-    match = re.search(r"<SQL>(.*?)</SQL>", raw_output, re.DOTALL | re.IGNORECASE)
-    if match:
-        return match.group(1).strip()
-    match = re.search(r"```sql\s*(.*?)\s*```", raw_output, re.DOTALL | re.IGNORECASE)
-    if match:
-        return match.group(1).strip()
-    return raw_output.replace("```", "").strip()
-
-
 def generate_sql_query(user_query: str) -> str:
     """
     Translates a natural language question into a safe SQLite query
-    using the centralized Gemini model and external prompt template.
+    using Pydantic structured output directly from Gemini (bypassing regex entirely).
     """
-    log_info(f"Generating SQL query for: '{user_query}'...")
-    raw_sql = sql_generator_model.execute_with({"question": user_query})
-    cleaned_sql = extract_sql_query(raw_sql)
-    log_info(f"Generated SQL: {cleaned_sql}")
-    return cleaned_sql
+    log_info(f"Generating structured SQL query for: '{user_query}'...")
+    schema = sql_db.get_schema("product")
+    result: SQLQueryOutput = sql_generator_model.execute_with({
+        "schema": schema,
+        "question": user_query,
+    })
+    log_info(f"Reasoning: {result.thought_process}")
+    log_info(f"Generated SQL: {result.query}")
+    return result.query.strip()
 
 
 def execute_sql_query(query: str) -> pd.DataFrame:
     """
     Executes generated SELECT SQL query safely via SQLiteDBManager singleton.
-    Security checks and connection pooling are handled by the singleton.
+    Security checks (enforcing SELECT and blocking destructive keywords)
+    and connection pooling are handled by the singleton.
     """
     return sql_db.execute_query(query)
 
@@ -76,7 +86,7 @@ def synthesize_sql_response(user_query: str, data: Union[pd.DataFrame, List[Dict
 def handle_sql_query(user_query: str) -> str:
     """
     Main orchestration function for the Text-to-SQL pipeline:
-    1. Generates SQL query with cached Gemini model.
+    1. Generates structured SQL query with cached Gemini model (Pydantic, zero regex).
     2. Executes SQL query safely via SQLiteDBManager singleton.
     3. Synthesizes a friendly, formatted product recommendation.
     """

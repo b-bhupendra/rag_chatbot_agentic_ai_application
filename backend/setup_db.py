@@ -298,6 +298,28 @@ class SQLiteDBManager:
         finally:
             conn.close()
 
+    def get_schema(self, table_name: str = "product") -> str:
+        """
+        Returns schema representation for the specified table.
+        Uses settings.PRODUCT_SCHEMA for product, or generates from table columns.
+        """
+        if table_name == "product":
+            return settings.PRODUCT_SCHEMA
+
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            cols = cursor.fetchall()
+            if not cols:
+                return f"Table: {table_name} (No columns found)"
+            lines = [f"Table: {table_name}", "Columns:"]
+            for col in cols:
+                lines.append(f"- {col[1]}: {col[2]}")
+            return "\n".join(lines)
+        finally:
+            conn.close()
+
     def setup_database(self, force_reload: bool = False) -> Path:
         """Initializes the SQLite product catalog."""
         log_info("Setting up SQLite product database...")

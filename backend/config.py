@@ -32,6 +32,19 @@ class Settings(BaseSettings):
     SQLITE_DB_PATH: Path = SQLITE_DIR / "db.sqlite"
     FAQ_COLLECTION_NAME: str = Field(default="faq_collection", description="ChromaDB collection for FAQs")
 
+    # Canonical Relational Schema
+    PRODUCT_SCHEMA: str = (
+        "Table: product\n"
+        "Columns:\n"
+        "- product_link: TEXT (hyperlink to product page on Flipkart)\n"
+        "- title: TEXT (title of the product)\n"
+        "- brand: TEXT (brand of product, e.g. Nike, Puma, Campus)\n"
+        "- price: INTEGER (price in Indian Rupees)\n"
+        "- discount: REAL (e.g., 0.10 for 10% off, 0.50 for 50% off)\n"
+        "- avg_rating: REAL (rating from 0 to 5.0)\n"
+        "- total_ratings: INTEGER (number of user reviews)"
+    )
+
     # API Keys
     GOOGLE_API_KEY: str = Field(..., description="Google Gemini API Key")
     GEMINI_API_KEY: str = Field(default="", description="Optional alias for Google API Key")

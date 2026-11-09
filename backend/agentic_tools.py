@@ -1,5 +1,6 @@
 import functools
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Optional, Type
+from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
@@ -42,27 +43,49 @@ def get_shared_llm() -> ChatGoogleGenerativeAI:
 
 class _model:
     """
-    Standardized, cached LLM chain wrapper.
-    Accepts prompt template and expected variables, then executes with input dictionary.
+    Standardized, cached LLM chain wrapper supporting:
+    1. Unstructured string output (default).
+    2. Strongly-typed Pydantic structured output (when output_schema is provided).
     """
-    def __init__(self, template: str, invoke_with: List[str]):
+    def __init__(
+        self,
+        template: str,
+        invoke_with: List[str],
+        output_schema: Optional[Type[BaseModel]] = None,
+    ):
         self.template = template
         self.invoke_with = invoke_with
+        self.output_schema = output_schema
         self.llm = get_shared_llm()
-
-    def execute_with(self, invoke: Dict[str, Any]) -> str:
-        if set(invoke.keys()) != set(self.invoke_with):
-            raise ValueError(
-                f"Prompt template variables do not match expected: {self.invoke_with}, got: {list(invoke.keys())}"
-            )
 
         prompt_template = PromptTemplate(
             input_variables=self.invoke_with,
             template=self.template,
         )
-        chain = prompt_template | self.llm
-        response = chain.invoke(invoke)
 
+        if self.output_schema:
+            self.chain = prompt_template | self.llm.with_structured_output(self.output_schema)
+        else:
+            self.chain = prompt_template | self.llm
+
+    def execute_with(self, invoke: Dict[str, Any]) -> Any:
+        """
+        Executes the chain with the provided input variables.
+        Returns a validated Pydantic model instance if output_schema is set,
+        otherwise returns the plain text response string.
+        """
+        if set(invoke.keys()) != set(self.invoke_with):
+            raise ValueError(
+                f"Prompt template variables do not match expected: {self.invoke_with}, got: {list(invoke.keys())}"
+            )
+
+        response = self.chain.invoke(invoke)
+
+        # Structured output returns Pydantic object directly
+        if self.output_schema:
+            return response
+
+        # Unstructured string output handling
         if isinstance(response.content, list):
             return "".join(
                 part.get("text", "") if isinstance(part, dict) else str(part)
