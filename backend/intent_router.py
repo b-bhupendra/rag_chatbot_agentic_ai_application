@@ -1,6 +1,11 @@
 from semantic_router import Route, IndexedRouter
 from semantic_router.encoders import HuggingFaceEncoder
 
+try:
+    from backend.config import settings
+except ModuleNotFoundError:
+    from config import settings
+
 # 1. Define Utterances for the FAQ Route
 faq_utterances = [
     "What is the return policy of the products?",
@@ -30,7 +35,7 @@ faq_route = Route(name="faq", utterances=faq_utterances)
 sql_route = Route(name="sql", utterances=sql_utterances)
 
 # Initialize modern HuggingFace encoder
-encoder = HuggingFaceEncoder(name="sentence-transformers/all-MiniLM-L6-v2")
+encoder = HuggingFaceEncoder(name=settings.EMBEDDING_MODEL)
 
 # Modern semantic-router >= 1.0 IndexedRouter
 router = IndexedRouter(encoder=encoder, routes=[faq_route, sql_route])
