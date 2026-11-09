@@ -1,0 +1,9 @@
+# LLM & Orchestration
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# Vector search & embeddings (choose according to preferred stack)
+numpy>=1.24.0
+
+# CLI and UI display
+rich>=13.0.0

@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+env/
+.env
+
+# Chroma / Vector DB storage
+.chroma/
+vector_store/
+*.faiss
+*.pkl
+
+# Logs
+*.log
