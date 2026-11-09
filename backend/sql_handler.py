@@ -1,17 +1,16 @@
 import re
-import sqlite3
 from typing import Union, List, Dict, Any
 import pandas as pd
 
 try:
     from backend.config import settings
     from backend.agentic_tools import _model
-    from backend.setup_db import ingest_sqlite_products
+    from backend.setup_db import sql_db
     from backend.logger import log_info, log_success, log_warning, log_error
 except ModuleNotFoundError:
     from config import settings
     from agentic_tools import _model
-    from setup_db import ingest_sqlite_products
+    from setup_db import sql_db
     from logger import log_info, log_success, log_warning, log_error
 
 
@@ -25,13 +24,6 @@ synthesis_model = _model(
     template=settings.SQL_SYNTHESIS_PROMPT,
     invoke_with=["question", "data"],
 )
-
-
-def get_db_connection() -> sqlite3.Connection:
-    """Returns connection to centralized SQLite DB path."""
-    if not settings.SQLITE_DB_PATH.exists():
-        ingest_sqlite_products()
-    return sqlite3.connect(settings.SQLITE_DB_PATH)
 
 
 def extract_sql_query(raw_output: str) -> str:
@@ -59,27 +51,10 @@ def generate_sql_query(user_query: str) -> str:
 
 def execute_sql_query(query: str) -> pd.DataFrame:
     """
-    Executes generated SELECT SQL query safely against SQLite database.
-    Security Guard: Only SELECT queries are permitted; destructive commands are blocked.
+    Executes generated SELECT SQL query safely via SQLiteDBManager singleton.
+    Security checks and connection pooling are handled by the singleton.
     """
-    clean_query = query.strip()
-
-    # Security check: Must begin with SELECT
-    if not clean_query.upper().startswith("SELECT"):
-        raise ValueError("Security violation: Only SELECT queries are permitted.")
-
-    # Guard against multi-statement attacks or destructive keywords
-    destructive_keywords = ["DROP", "DELETE", "UPDATE", "INSERT", "ALTER", "TRUNCATE"]
-    for kw in destructive_keywords:
-        if re.search(rf"\b{kw}\b", clean_query, re.IGNORECASE):
-            raise ValueError(f"Security violation: Keyword '{kw}' is prohibited.")
-
-    conn = get_db_connection()
-    try:
-        df = pd.read_sql_query(clean_query, conn)
-        return df
-    finally:
-        conn.close()
+    return sql_db.execute_query(query)
 
 
 def synthesize_sql_response(user_query: str, data: Union[pd.DataFrame, List[Dict[str, Any]], str]) -> str:
@@ -102,7 +77,7 @@ def handle_sql_query(user_query: str) -> str:
     """
     Main orchestration function for the Text-to-SQL pipeline:
     1. Generates SQL query with cached Gemini model.
-    2. Executes SQL query with strict read-only security check.
+    2. Executes SQL query safely via SQLiteDBManager singleton.
     3. Synthesizes a friendly, formatted product recommendation.
     """
     try:

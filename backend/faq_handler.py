@@ -1,15 +1,14 @@
 from typing import Optional
-import chromadb
 
 try:
     from backend.config import settings
-    from backend.agentic_tools import _model, embed
-    from backend.setup_db import ingest_faq_file, get_chroma_client
+    from backend.agentic_tools import _model
+    from backend.setup_db import chroma_db
     from backend.logger import log_info, log_success, log_warning, log_error
 except ModuleNotFoundError:
     from config import settings
-    from agentic_tools import _model, embed
-    from setup_db import ingest_faq_file, get_chroma_client
+    from agentic_tools import _model
+    from setup_db import chroma_db
     from logger import log_info, log_success, log_warning, log_error
 
 
@@ -20,37 +19,12 @@ faq_model = _model(
 )
 
 
-def get_faq_collection(collection_name: Optional[str] = None) -> chromadb.Collection:
+def retrieve_faq_context(query: str, n_results: int = 2) -> str:
     """
-    Retrieves or ingests the FAQ collection using persistent ChromaDB storage.
+    Performs vector similarity search against stored FAQ questions
+    using the singleton ChromaDBManager instance.
     """
-    collection_name = collection_name or settings.FAQ_COLLECTION_NAME
-    client = get_chroma_client()
-    try:
-        coll = client.get_collection(name=collection_name)
-        if coll.count() > 0:
-            return coll
-    except Exception:
-        pass
-    # Ingest if not present
-    return ingest_faq_file(collection_name=collection_name)
-
-
-def retrieve_faq_context(query: str, collection: Optional[chromadb.Collection] = None, n_results: int = 2) -> str:
-    """
-    Performs vector similarity search against stored FAQ questions to retrieve matching answers.
-    """
-    collection = collection or get_faq_collection()
-    query_embedding = embed.encode([query]).tolist()
-    results = collection.query(
-        query_embeddings=query_embedding,
-        n_results=n_results,
-    )
-
-    if results["metadatas"] and results["metadatas"][0]:
-        matched_answers = [meta["answer"] for meta in results["metadatas"][0]]
-        return "\n".join(matched_answers)
-    return "No matching FAQ information found."
+    return chroma_db.retrieve_context(query=query, n_results=n_results)
 
 
 def handle_faq_query(user_query: str, use_llm: bool = True) -> str:

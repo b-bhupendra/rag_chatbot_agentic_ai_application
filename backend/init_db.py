@@ -1,13 +1,12 @@
 """
 Backward-compatible database initialization script.
-Delegates to backend.setup_db.setup_database for production-grade ingestion
-with hash-based caching and full catalog support.
+Delegates to the SQLiteDBManager singleton in backend.setup_db.
 """
 try:
-    from backend.setup_db import setup_database, init_all_databases
+    from backend.setup_db import sql_db, setup_database
 except ModuleNotFoundError:
-    from setup_db import setup_database, init_all_databases
+    from setup_db import sql_db, setup_database
+
 
 if __name__ == "__main__":
     setup_database()
-
