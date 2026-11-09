@@ -1,0 +1,20 @@
+# Vector Database
+chromadb
+
+# Intent Routing
+semantic-router
+
+# Local Embeddings
+sentence-transformers
+
+# Google GenAI & LangChain (Text-to-SQL & LLM)
+langchain
+langchain-google-genai
+google-generativeai
+
+# Front-End UI
+streamlit
+
+# Environment Variables
+python-dotenv
+
