@@ -55,10 +55,12 @@ def generate_faq_response_langchain(user_query, context):
     """
     Uses LangChain and Google GenAI (Gemini) to synthesize a coherent response.
     """
-    # 1. Initialize Google Gemini LLM via LangChain
+    # 1. Initialize Google Gemini LLM via LangChain (thinking disabled for near-instant responses)
     llm = ChatGoogleGenerativeAI(
-        model=os.environ.get("GEMINI_MODEL"),
-        temperature=0.2,
+        model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash"),
+        # temperature=0.2,
+        # api_version="v1beta",
+        # thinking_budget=0,
         google_api_key=os.environ.get("GOOGLE_API_KEY")
     )
 
