@@ -43,3 +43,4 @@ class Settings(BaseSettings):
 
 # Centralized singleton instance
 settings = Settings()
+
