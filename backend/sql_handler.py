@@ -83,20 +83,40 @@ def synthesize_sql_response(user_query: str, data: Union[pd.DataFrame, List[Dict
     return synthesis_model.execute_with({"question": user_query, "data": data_str})
 
 
-def handle_sql_query(user_query: str) -> str:
+def handle_sql_query_with_products(user_query: str) -> Dict[str, Any]:
     """
-    Main orchestration function for the Text-to-SQL pipeline:
+    Main orchestration function for the Text-to-SQL pipeline returning both
+    synthesized natural language and structured product records:
     1. Generates structured SQL query with cached Gemini model (Pydantic, zero regex).
     2. Executes SQL query safely via SQLiteDBManager singleton.
-    3. Synthesizes a friendly, formatted product recommendation.
+    3. Synthesizes a friendly, formatted product recommendation without emojis.
     """
     try:
         sql_query = generate_sql_query(user_query)
-        data = execute_sql_query(sql_query)
-        return synthesize_sql_response(user_query, data)
+        df = execute_sql_query(sql_query)
+        response_text = synthesize_sql_response(user_query, df)
+
+        # Convert NaN values to None for clean JSON serialization
+        clean_df = df.where(pd.notnull(df), None)
+        products = clean_df.to_dict(orient="records")
+        return {
+            "response": response_text,
+            "products": products,
+            "sql_query": sql_query,
+        }
     except Exception as e:
         log_error(f"Text-to-SQL pipeline failed: {e}")
-        return f"I encountered an issue retrieving the products: {str(e)}"
+        return {
+            "response": f"I encountered an issue retrieving the products: {str(e)}",
+            "products": [],
+            "sql_query": "",
+        }
+
+
+def handle_sql_query(user_query: str) -> str:
+    """Convenience string-only wrapper for backward compatibility."""
+    result = handle_sql_query_with_products(user_query)
+    return result["response"]
 
 
 # --- Quick Test Run ---

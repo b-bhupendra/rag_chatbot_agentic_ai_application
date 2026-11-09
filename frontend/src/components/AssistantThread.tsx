@@ -3,6 +3,7 @@ import {
   ComposerPrimitive,
   MessagePrimitive,
 } from '@assistant-ui/react'
+import { ShoppingBag, Bot, Send } from 'lucide-react'
 
 export function AssistantThread() {
   return (
@@ -10,7 +11,9 @@ export function AssistantThread() {
       <ThreadPrimitive.Viewport className="aui-thread-viewport">
         <ThreadPrimitive.Empty>
           <div className="aui-empty-state">
-            <div className="aui-empty-icon">🛍️</div>
+            <div className="aui-empty-icon">
+              <ShoppingBag size={32} />
+            </div>
             <h3>How can I assist you today?</h3>
             <p>
               Ask about store return policies, shipping, or search 900+ products
@@ -29,7 +32,9 @@ export function AssistantThread() {
             ),
             AssistantMessage: () => (
               <MessagePrimitive.Root className="aui-message-row assistant">
-                <div className="aui-avatar">🤖</div>
+                <div className="aui-avatar">
+                  <Bot size={16} />
+                </div>
                 <div className="aui-message-bubble assistant">
                   <MessagePrimitive.Content />
                 </div>
@@ -44,7 +49,7 @@ export function AssistantThread() {
           className="aui-composer-input"
         />
         <ComposerPrimitive.Send className="aui-composer-send">
-          Send
+          <Send size={15} />
         </ComposerPrimitive.Send>
       </ComposerPrimitive.Root>
     </ThreadPrimitive.Root>

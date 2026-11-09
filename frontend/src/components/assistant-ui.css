@@ -160,8 +160,14 @@
   box-shadow: 0 14px 28px rgba(79, 70, 229, 0.5);
 }
 
-.aui-trigger-icon {
-  font-size: 20px;
+.aui-trigger-icon-lucide {
+  color: #ffffff;
+}
+
+.aui-icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .aui-modal-content {
@@ -222,3 +228,4 @@
   display: flex;
   overflow: hidden;
 }
+

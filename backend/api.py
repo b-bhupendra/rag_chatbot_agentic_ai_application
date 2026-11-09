@@ -11,14 +11,14 @@ try:
     from backend.setup_db import chroma_db, sql_db, init_all_databases
     from backend.intent_router import route_query
     from backend.faq_handler import handle_faq_query
-    from backend.sql_handler import handle_sql_query
+    from backend.sql_handler import handle_sql_query, handle_sql_query_with_products
     from backend.logger import log_info, log_success, log_error
 except ModuleNotFoundError:
     from config import settings
     from setup_db import chroma_db, sql_db, init_all_databases
     from intent_router import route_query
     from faq_handler import handle_faq_query
-    from sql_handler import handle_sql_query
+    from sql_handler import handle_sql_query, handle_sql_query_with_products
     from logger import log_info, log_success, log_error
 
 
@@ -37,6 +37,8 @@ class ChatResponse(BaseModel):
     route: str = Field(..., description="The intent route: 'faq', 'sql', or 'fallback'.")
     elapsed_seconds: float = Field(..., description="Response latency in seconds.")
     timestamp: str = Field(default_factory=lambda: datetime.utcnow().isoformat())
+    products: Optional[List[Dict[str, Any]]] = Field(default=None, description="Structured product results if query returned products.")
+    sql_query: Optional[str] = Field(default=None, description="Executed SQL query if available.")
 
 
 class QueryRequest(BaseModel):
@@ -161,11 +163,16 @@ def chat(request: ChatRequest):
 
     try:
         selected_route = route_query(user_query)
+        products = None
+        sql_query = None
 
         if selected_route == "faq":
             response_text = handle_faq_query(user_query, use_llm=request.use_llm_for_faq)
         elif selected_route == "sql":
-            response_text = handle_sql_query(user_query)
+            sql_result = handle_sql_query_with_products(user_query)
+            response_text = sql_result["response"]
+            products = sql_result.get("products")
+            sql_query = sql_result.get("sql_query")
         else:
             # Fallback to FAQ search for general store inquiries
             response_text = handle_faq_query(user_query, use_llm=request.use_llm_for_faq)
@@ -178,6 +185,8 @@ def chat(request: ChatRequest):
             response=response_text,
             route=selected_route,
             elapsed_seconds=elapsed,
+            products=products,
+            sql_query=sql_query,
         )
 
     except Exception as e:
@@ -208,9 +217,15 @@ def direct_faq(request: QueryRequest):
 def direct_sql(request: QueryRequest):
     """Directly queries the Text-to-SQL handler, bypassing the intent router."""
     start_time = time.time()
-    response_text = handle_sql_query(request.query)
+    sql_result = handle_sql_query_with_products(request.query)
     elapsed = round(time.time() - start_time, 2)
-    return ChatResponse(response=response_text, route="sql", elapsed_seconds=elapsed)
+    return ChatResponse(
+        response=sql_result["response"],
+        route="sql",
+        elapsed_seconds=elapsed,
+        products=sql_result.get("products"),
+        sql_query=sql_result.get("sql_query"),
+    )
 
 
 if __name__ == "__main__":

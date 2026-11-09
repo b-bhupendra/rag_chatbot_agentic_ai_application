@@ -53,3 +53,4 @@ export const ragChatAdapter: ChatModelAdapter = {
 export function useRagChatRuntime() {
   return useLocalRuntime(ragChatAdapter)
 }
+

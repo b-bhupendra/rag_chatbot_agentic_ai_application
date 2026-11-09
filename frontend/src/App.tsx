@@ -3,20 +3,30 @@ import './App.css'
 import type { Message, HealthInfo, SuggestionItem } from './types'
 import { sendChatMessage, getHealth, getSuggestions } from './api'
 import { AssistantModal } from './components/AssistantModal'
+import { ProductCarousel } from './components/ProductCarousel'
+import {
+  ShoppingBag,
+  Bot,
+  User,
+  Navigation,
+  Zap,
+  Trash2,
+  Send,
+  AlertCircle,
+} from 'lucide-react'
 
-// Simple markdown & link renderer
+// Safe markdown & link renderer without emojis
 function FormattedContent({ text }: { text: string }) {
-  // Convert markdown links [Label](url) and raw URLs into clickable anchor tags
   const formatText = (content: string) => {
     // Replace markdown links: [text](url)
     let formatted = content.replace(
       /\[(.*?)\]\((https?:\/\/[^\s]+)\)/g,
-      '<a href="$2" target="_blank" rel="noopener noreferrer" class="product-link">$1 ↗</a>'
+      '<a href="$2" target="_blank" rel="noopener noreferrer" class="product-link">$1</a>'
     )
-    // Replace standalone URLs that aren't inside an <a> tag
+    // Replace standalone URLs not inside an <a> tag
     formatted = formatted.replace(
       /(?<!href=")(https?:\/\/[^\s<]+)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" class="product-link">View Product ↗</a>'
+      '<a href="$1" target="_blank" rel="noopener noreferrer" class="product-link">View Product</a>'
     )
     // Replace **bold** with <strong>
     formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -38,7 +48,7 @@ export function App() {
       id: 'welcome',
       role: 'assistant',
       content:
-        '👋 Welcome to the **E-Commerce AI Assistant**!\nI can answer questions about store policies (FAQ) or search products in our catalog (Text-to-SQL). How can I help you today?',
+        'Welcome to the **E-Commerce AI Assistant**.\nI can answer questions regarding store policies (FAQ) or search through products in our catalog (Text-to-SQL). How can I assist you today?',
       route: 'system',
     },
   ])
@@ -48,7 +58,6 @@ export function App() {
   const [suggestions, setSuggestions] = useState<SuggestionItem[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom of messages
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
@@ -57,7 +66,6 @@ export function App() {
     scrollToBottom()
   }, [messages, isLoading])
 
-  // Load backend health and prompt suggestions on mount
   useEffect(() => {
     getHealth()
       .then((data) => setHealth(data))
@@ -92,13 +100,15 @@ export function App() {
         route: response.route,
         elapsedSeconds: response.elapsed_seconds,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        products: response.products,
+        sqlQuery: response.sql_query,
       }
       setMessages((prev) => [...prev, assistantMessage])
     } catch (error) {
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: `❌ ${error instanceof Error ? error.message : 'Failed to connect to the backend server.'}`,
+        content: `Error: ${error instanceof Error ? error.message : 'Failed to connect to the backend server.'}`,
         route: 'fallback',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }
@@ -131,7 +141,9 @@ export function App() {
       {/* Header */}
       <header className="chat-header">
         <div className="header-info">
-          <div className="logo-badge">🛍️</div>
+          <div className="logo-badge">
+            <ShoppingBag size={22} className="logo-icon" />
+          </div>
           <div>
             <h1>E-Commerce AI Assistant</h1>
             <p className="subtitle">
@@ -141,14 +153,18 @@ export function App() {
         </div>
         <div className="header-actions">
           {health && (
-            <div className="health-badge" title={`Chroma: ${health.faq_count} FAQs | SQLite: ${health.product_count} products`}>
+            <div
+              className="health-badge"
+              title={`Chroma: ${health.faq_count} FAQs | SQLite: ${health.product_count} products`}
+            >
               <span className="status-dot"></span>
               <span>{health.model}</span>
               <span className="count-pill">{health.product_count} items</span>
             </div>
           )}
           <button className="clear-btn" onClick={clearChat} title="Clear conversation history">
-            Clear
+            <Trash2 size={14} className="mr-1" />
+            <span>Clear</span>
           </button>
         </div>
       </header>
@@ -157,28 +173,58 @@ export function App() {
       <main className="messages-area">
         {messages.map((msg) => (
           <div key={msg.id} className={`message-row ${msg.role}`}>
-            {msg.role === 'assistant' && <div className="avatar assistant-avatar">🤖</div>}
-            <div className="message-bubble">
-              <FormattedContent text={msg.content} />
-              <div className="message-meta">
-                {msg.route && msg.route !== 'system' && (
-                  <span className={`route-pill ${msg.route}`}>
-                    🛣️ {msg.route.toUpperCase()}
-                  </span>
-                )}
-                {msg.elapsedSeconds !== undefined && (
-                  <span className="timing-pill">⚡ {msg.elapsedSeconds}s</span>
-                )}
-                {msg.timestamp && <span className="time-stamp">{msg.timestamp}</span>}
+            {msg.role === 'assistant' && (
+              <div className="avatar assistant-avatar" title="Assistant">
+                <Bot size={17} />
               </div>
+            )}
+            <div className="message-content-wrapper">
+              <div className="message-bubble">
+                {msg.route === 'fallback' && msg.content.startsWith('Error:') ? (
+                  <div className="error-content">
+                    <AlertCircle size={16} className="text-danger mr-1" />
+                    <FormattedContent text={msg.content} />
+                  </div>
+                ) : (
+                  <FormattedContent text={msg.content} />
+                )}
+
+                {/* Metadata Pills */}
+                <div className="message-meta">
+                  {msg.route && msg.route !== 'system' && (
+                    <span className={`route-pill ${msg.route}`}>
+                      <Navigation size={11} className="route-icon" />
+                      <span>{msg.route.toUpperCase()}</span>
+                    </span>
+                  )}
+                  {msg.elapsedSeconds !== undefined && (
+                    <span className="timing-pill">
+                      <Zap size={11} className="timing-icon" />
+                      <span>{msg.elapsedSeconds}s</span>
+                    </span>
+                  )}
+                  {msg.timestamp && <span className="time-stamp">{msg.timestamp}</span>}
+                </div>
+              </div>
+
+              {/* Scrollable Product Cards Carousel */}
+              {msg.products && msg.products.length > 0 && (
+                <ProductCarousel products={msg.products} />
+              )}
             </div>
-            {msg.role === 'user' && <div className="avatar user-avatar">👤</div>}
+            {msg.role === 'user' && (
+              <div className="avatar user-avatar" title="User">
+                <User size={17} />
+              </div>
+            )}
           </div>
         ))}
 
         {isLoading && (
           <div className="message-row assistant">
-            <div className="avatar assistant-avatar">🤖</div>
+            <div className="avatar assistant-avatar">
+              <Bot size={17} />
+            </div>
             <div className="message-bubble loading-bubble">
               <div className="typing-indicator">
                 <span></span>
@@ -230,13 +276,11 @@ export function App() {
             disabled={!input.trim() || isLoading}
             aria-label="Send message"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
+            <Send size={18} />
           </button>
         </div>
       </footer>
+
       {/* Assistant UI Floating Widget Modal */}
       <AssistantModal />
     </div>
