@@ -5,6 +5,11 @@ __pycache__/
 env/
 .env
 
+# Centralized Databases (Generated from datasets/)
+database/
+*.sqlite
+*.db
+
 # Chroma / Vector DB storage
 .chroma/
 chroma_db/
@@ -15,4 +20,3 @@ vector_store/
 
 # Logs
 *.log
-

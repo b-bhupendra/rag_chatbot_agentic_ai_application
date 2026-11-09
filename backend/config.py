@@ -13,20 +13,31 @@ def _load_prompt_file(file_path: Path) -> str:
 class Settings(BaseSettings):
     """
     Centralized application configuration loaded from environment, .env file,
-    and external prompt templates.
+    and external prompt templates. Single source of truth for all paths and parameters.
     """
     # Base paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
     BACKEND_DIR: Path = Path(__file__).resolve().parent
     DATASETS_DIR: Path = BASE_DIR / "datasets"
     PROMPTS_DIR: Path = BASE_DIR / "prompts"
+    DATABASE_DIR: Path = BASE_DIR / "database"
+
+    # Datasets paths
+    FAQ_DATA_PATH: Path = DATASETS_DIR / "faq_data.csv"
+    ECOMMERCE_DATA_PATH: Path = DATASETS_DIR / "ecommerce_data_final.csv"
+
+    # Centralized Database paths (Inside root database/ directory)
+    CHROMA_PERSIST_DIR: Path = DATABASE_DIR / "chroma"
+    SQLITE_DIR: Path = DATABASE_DIR / "sqlite"
+    SQLITE_DB_PATH: Path = SQLITE_DIR / "db.sqlite"
+    FAQ_COLLECTION_NAME: str = Field(default="faq_collection", description="ChromaDB collection for FAQs")
 
     # API Keys
     GOOGLE_API_KEY: str = Field(..., description="Google Gemini API Key")
     GEMINI_API_KEY: str = Field(default="", description="Optional alias for Google API Key")
 
     # LLM Settings
-    GEMINI_MODEL: str = Field(default="gemini-2.5-flash", description="Gemini model identifier")
+    GEMINI_MODEL: str = Field(default="gemini-3.5-flash-lite", description="Gemini model identifier")
     GEMINI_TEMPERATURE: float = Field(default=0.1, description="Sampling temperature")
     GEMINI_API_VERSION: str = Field(default="v1beta", description="API version for fast thinking control")
     GEMINI_THINKING_BUDGET: int = Field(default=0, description="0 turns off thinking tokens for fast response")
@@ -36,11 +47,6 @@ class Settings(BaseSettings):
         default="sentence-transformers/all-MiniLM-L6-v2",
         description="Local HuggingFace embedding model"
     )
-    CHROMA_PERSIST_DIR: Path = BACKEND_DIR / "chroma_db"
-    FAQ_COLLECTION_NAME: str = Field(default="faq_collection", description="ChromaDB collection for FAQs")
-
-    # SQLite Database
-    SQLITE_DB_PATH: Path = BACKEND_DIR / "db.sqlite"
 
     # Dynamic Prompts (Loaded from prompts/ folder)
     @property

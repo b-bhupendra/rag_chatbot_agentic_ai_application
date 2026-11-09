@@ -32,7 +32,7 @@ def get_file_hash(file_path: Union[str, Path]) -> str:
 class ChromaDBManager:
     """
     Singleton wrapper for ChromaDB vector operations:
-    - Persistent client management
+    - Persistent client management in settings.CHROMA_PERSIST_DIR
     - HNSW cosine similarity collections
     - Dynamic FAQ ingestion with SHA-256 hash change detection
     - Semantic vector context retrieval
@@ -68,15 +68,16 @@ class ChromaDBManager:
 
     def ingest_faq_file(
         self,
-        file_path: Union[str, Path] = "datasets/faq_data.csv",
+        file_path: Optional[Union[str, Path]] = None,
         collection_name: Optional[str] = None,
         force_reload: bool = False,
     ) -> chromadb.Collection:
         """
         Ingests a CSV of FAQs into ChromaDB with SHA-256 hash checking.
-        Skips re-indexing if the file is unmodified.
+        Defaults to settings.FAQ_DATA_PATH. Skips re-indexing if unmodified.
         """
-        path = Path(file_path)
+        raw_path = file_path or settings.FAQ_DATA_PATH
+        path = Path(raw_path)
         if not path.is_absolute():
             path = settings.BASE_DIR / path
 
@@ -164,7 +165,7 @@ class ChromaDBManager:
 class SQLiteDBManager:
     """
     Singleton wrapper for SQLite relational database operations:
-    - Connection lifecycle management
+    - Connection lifecycle management in settings.SQLITE_DB_PATH
     - Arbitrary CSV ingestion with SHA-256 hash tracking via _ingestion_metadata
     - Secure, read-only SELECT query execution
     """
@@ -208,16 +209,18 @@ class SQLiteDBManager:
 
     def ingest_table(
         self,
-        csv_path: Union[str, Path],
+        csv_path: Optional[Union[str, Path]] = None,
         table_name: str = "product",
         force_reload: bool = False,
     ) -> Path:
         """
         Extensible CSV ingestion into SQLite:
         - Ingests ANY CSV file into any specified table.
+        - Defaults to settings.ECOMMERCE_DATA_PATH.
         - Uses SHA-256 hash checking to skip unchanged files.
         """
-        path = Path(csv_path)
+        raw_path = csv_path or settings.ECOMMERCE_DATA_PATH
+        path = Path(raw_path)
         if not path.is_absolute():
             path = settings.BASE_DIR / path
 
@@ -261,16 +264,17 @@ class SQLiteDBManager:
 
     def ingest_products(
         self,
-        csv_path: Union[str, Path] = "datasets/ecommerce_data_final.csv",
+        csv_path: Optional[Union[str, Path]] = None,
         table_name: str = "product",
         force_reload: bool = False,
     ) -> Path:
         """Convenience alias for ingesting the product catalog."""
-        return self.ingest_table(csv_path=csv_path, table_name=table_name, force_reload=force_reload)
+        return self.ingest_table(csv_path=csv_path or settings.ECOMMERCE_DATA_PATH, table_name=table_name, force_reload=force_reload)
 
     def execute_query(self, query: str) -> pd.DataFrame:
         """
         Executes a SQL query safely against SQLite:
+        - Ensures database file and tables exist before executing.
         - Security Guard: Enforces SELECT-only queries.
         - Blocks destructive statements (DROP, DELETE, UPDATE, INSERT, ALTER, TRUNCATE).
         """
@@ -283,6 +287,10 @@ class SQLiteDBManager:
         for kw in destructive_keywords:
             if re.search(rf"\b{kw}\b", clean_query, re.IGNORECASE):
                 raise ValueError(f"Security violation: Keyword '{kw}' is prohibited.")
+
+        # Ensure database is initialized
+        if not self.db_path.exists():
+            self.setup_database()
 
         conn = self.get_connection()
         try:
@@ -310,7 +318,7 @@ def get_chroma_client() -> chromadb.PersistentClient:
 
 
 def ingest_faq_file(
-    file_path: Union[str, Path] = "datasets/faq_data.csv",
+    file_path: Optional[Union[str, Path]] = None,
     collection_name: Optional[str] = None,
     force_reload: bool = False,
 ) -> chromadb.Collection:
@@ -319,7 +327,7 @@ def ingest_faq_file(
 
 
 def ingest_sqlite_table(
-    csv_path: Union[str, Path],
+    csv_path: Optional[Union[str, Path]] = None,
     table_name: str = "product",
     force_reload: bool = False,
 ) -> Path:
@@ -328,7 +336,7 @@ def ingest_sqlite_table(
 
 
 def ingest_sqlite_products(
-    csv_path: Union[str, Path] = "datasets/ecommerce_data_final.csv",
+    csv_path: Optional[Union[str, Path]] = None,
     table_name: str = "product",
     force_reload: bool = False,
 ) -> Path:

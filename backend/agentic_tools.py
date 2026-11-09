@@ -23,15 +23,21 @@ def get_embedding_model() -> SentenceTransformer:
 def get_shared_llm() -> ChatGoogleGenerativeAI:
     """
     Cached ChatGoogleGenerativeAI instance.
-    Uses settings from Pydantic config (v1beta, thinking_budget=0 for fast ~1.3s responses).
+    Uses settings from Pydantic config. Adjusts thinking_budget and temperature
+    automatically based on model family (flash-lite models use fixed sampling).
     """
-    return ChatGoogleGenerativeAI(
-        model=settings.GEMINI_MODEL,
-        temperature=settings.GEMINI_TEMPERATURE,
-        api_version=settings.GEMINI_API_VERSION,
-        thinking_budget=settings.GEMINI_THINKING_BUDGET,
-        google_api_key=settings.GOOGLE_API_KEY,
-    )
+    kwargs = {
+        "model": settings.GEMINI_MODEL,
+        "google_api_key": settings.GOOGLE_API_KEY,
+    }
+
+    if "lite" not in settings.GEMINI_MODEL.lower():
+        kwargs["temperature"] = settings.GEMINI_TEMPERATURE
+        kwargs["api_version"] = settings.GEMINI_API_VERSION
+        if settings.GEMINI_THINKING_BUDGET is not None:
+            kwargs["thinking_budget"] = settings.GEMINI_THINKING_BUDGET
+
+    return ChatGoogleGenerativeAI(**kwargs)
 
 
 class _model:
