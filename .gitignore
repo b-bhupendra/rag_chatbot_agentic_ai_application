@@ -20,3 +20,8 @@ vector_store/
 
 # Logs
 *.log
+
+# Frontend
+node_modules/
+frontend/dist/
+frontend/node_modules/
