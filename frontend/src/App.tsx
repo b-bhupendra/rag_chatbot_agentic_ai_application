@@ -1,417 +1,443 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import './App.css'
-import type { Product, HealthInfo } from './types'
-import { getHealth, getFeaturedProducts } from './api'
-import { AIAssistantModal } from './components/AIAssistantModal'
+import type { Message, SuggestionItem, HealthInfo } from './types'
+import { sendChatMessage, getSuggestions, getHealth } from './api'
+import { ProductCarousel } from './components/ProductCarousel'
 import {
-  ShoppingBag,
-  Search,
-  Star,
-  ExternalLink,
-  ShieldCheck,
-  RotateCcw,
-  Truck,
-  Sparkles,
   Bot,
-  Tag,
-  Package,
-  ArrowRight,
+  User,
+  Navigation,
+  Zap,
+  Trash2,
+  Send,
+  AlertCircle,
+  X,
+  Minus,
+  Maximize2,
+  Minimize2,
+  Sparkles,
 } from 'lucide-react'
 
+// Markdown & link renderer without emojis
+function FormattedContent({ text }: { text: string }) {
+  const formatText = (content: string) => {
+    let formatted = content.replace(
+      /\[(.*?)\]\((https?:\/\/[^\s]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener noreferrer" class="product-link">$1</a>'
+    )
+    formatted = formatted.replace(
+      /(?<!href=")(https?:\/\/[^\s<]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer" class="product-link">View Product</a>'
+    )
+    formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    return formatted.replace(/\n/g, '<br/>')
+  }
+
+  return (
+    <div
+      className="formatted-content"
+      dangerouslySetInnerHTML={{ __html: formatText(text) }}
+    />
+  )
+}
+
+// Minimalist Mountain SVG Landscape Background
+function MountainBackground() {
+  return (
+    <div className="mountain-bg-container" aria-hidden="true">
+      <svg
+        className="mountain-svg"
+        viewBox="0 0 1440 900"
+        fill="none"
+        xmlns="http://www.w3.org/2000/svg"
+        preserveAspectRatio="xMidYMid slice"
+      >
+        <defs>
+          <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#090d16" />
+            <stop offset="45%" stopColor="#111827" />
+            <stop offset="80%" stopColor="#1e293b" />
+            <stop offset="100%" stopColor="#0f172a" />
+          </linearGradient>
+
+          <linearGradient id="mountainBack" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#1e293b" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#0f172a" stopOpacity="0.95" />
+          </linearGradient>
+
+          <linearGradient id="mountainMid" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#152136" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#09101d" />
+          </linearGradient>
+
+          <linearGradient id="mountainFront" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stopColor="#0d1829" />
+            <stop offset="100%" stopColor="#050912" />
+          </linearGradient>
+
+          <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.18" />
+            <stop offset="60%" stopColor="#0284c7" stopOpacity="0.05" />
+            <stop offset="100%" stopColor="transparent" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+
+        {/* Night / Twilight Sky */}
+        <rect width="1440" height="900" fill="url(#skyGrad)" />
+
+        {/* Ambient Moon / Star Glow */}
+        <circle cx="720" cy="280" r="320" fill="url(#sunGlow)" />
+        <circle cx="720" cy="280" r="48" fill="#e0f2fe" fillOpacity="0.12" />
+        <circle cx="720" cy="280" r="32" fill="#ffffff" fillOpacity="0.25" />
+
+        {/* Distant Stars */}
+        <circle cx="180" cy="140" r="1.5" fill="#ffffff" fillOpacity="0.5" />
+        <circle cx="340" cy="90" r="1" fill="#ffffff" fillOpacity="0.4" />
+        <circle cx="520" cy="180" r="1.5" fill="#ffffff" fillOpacity="0.6" />
+        <circle cx="920" cy="120" r="1.2" fill="#ffffff" fillOpacity="0.5" />
+        <circle cx="1140" cy="80" r="1" fill="#ffffff" fillOpacity="0.4" />
+        <circle cx="1280" cy="160" r="1.5" fill="#ffffff" fillOpacity="0.6" />
+        <circle cx="850" cy="220" r="1" fill="#ffffff" fillOpacity="0.3" />
+
+        {/* Distant Back Mountains */}
+        <path
+          d="M0 580 L180 430 L360 520 L580 360 L780 490 L980 340 L1180 470 L1360 380 L1440 430 L1440 900 L0 900 Z"
+          fill="url(#mountainBack)"
+        />
+
+        {/* Mid-ground Mountains */}
+        <path
+          d="M0 660 L140 550 L310 630 L490 480 L680 610 L870 470 L1060 590 L1240 490 L1440 610 L1440 900 L0 900 Z"
+          fill="url(#mountainMid)"
+        />
+
+        {/* Foreground Mountains & Ridges */}
+        <path
+          d="M0 740 L160 640 L340 710 L520 590 L710 690 L900 580 L1120 700 L1320 620 L1440 680 L1440 900 L0 900 Z"
+          fill="url(#mountainFront)"
+        />
+
+        {/* Subtle Valley Mist Line */}
+        <line x1="0" y1="710" x2="1440" y2="710" stroke="#38bdf8" strokeOpacity="0.04" strokeWidth="6" />
+      </svg>
+
+      <div className="bg-caption">
+        <h2>E-Commerce AI Assistant</h2>
+        <p>Agentic RAG &bull; ChromaDB Vector FAQ &bull; SQLite Text-to-SQL</p>
+      </div>
+    </div>
+  )
+}
+
 export function App() {
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [modalInitialQuery, setModalInitialQuery] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
-  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([])
+  const [isOpen, setIsOpen] = useState(true)
+  const [isMaximized, setIsMaximized] = useState(false)
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      content:
+        'Hello! Welcome to the **E-Commerce AI Assistant**.\nI can answer questions regarding store policies (FAQ) or search through 900+ products in our footwear catalog (Text-to-SQL). How can I assist you today?',
+      route: 'system',
+    },
+  ])
+  const [input, setInput] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
   const [health, setHealth] = useState<HealthInfo | null>(null)
-  const [selectedBrand, setSelectedBrand] = useState('ALL')
+  const [suggestions, setSuggestions] = useState<SuggestionItem[]>([])
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      scrollToBottom()
+      setTimeout(() => inputRef.current?.focus(), 150)
+    }
+  }, [isOpen, messages, isLoading, isMaximized])
 
   useEffect(() => {
     getHealth()
       .then((data) => setHealth(data))
       .catch((err) => console.error('Health check error:', err))
 
-    getFeaturedProducts()
-      .then((products) => setFeaturedProducts(products))
-      .catch((err) => console.error('Featured products error:', err))
+    getSuggestions()
+      .then((items) => setSuggestions(items))
+      .catch((err) => console.error('Suggestions error:', err))
   }, [])
 
-  const triggerAssistantWithQuery = (query: string) => {
-    setModalInitialQuery(query)
-    setIsModalOpen(true)
-  }
+  const handleSend = async (messageText: string) => {
+    const text = messageText.trim()
+    if (!text || isLoading) return
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (searchQuery.trim()) {
-      triggerAssistantWithQuery(searchQuery.trim())
-      setSearchQuery('')
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    }
+
+    setMessages((prev) => [...prev, userMessage])
+    setInput('')
+    setIsLoading(true)
+
+    try {
+      const response = await sendChatMessage(text)
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: response.response,
+        route: response.route,
+        elapsedSeconds: response.elapsed_seconds,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        products: response.products,
+        sqlQuery: response.sql_query,
+      }
+      setMessages((prev) => [...prev, assistantMessage])
+    } catch (error) {
+      const errorMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: `Error: ${error instanceof Error ? error.message : 'Failed to connect to the backend server.'}`,
+        route: 'fallback',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }
+      setMessages((prev) => [...prev, errorMessage])
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const formatDiscount = (discount?: number): string | null => {
-    if (discount === undefined || discount === null || discount <= 0) return null
-    const pct = discount <= 1.0 ? Math.round(discount * 100) : Math.round(discount)
-    return pct > 0 ? `${pct}% OFF` : null
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend(input)
+    }
   }
 
-  const formatReviewsCount = (count?: number): string => {
-    if (!count) return ''
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}k`
-    return `${count}`
+  const clearChat = () => {
+    setMessages([
+      {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: 'Chat history cleared. How can I assist you with products or store policies?',
+        route: 'system',
+      },
+    ])
   }
-
-  const filteredProducts = selectedBrand === 'ALL'
-    ? featuredProducts
-    : featuredProducts.filter((p) => p.brand?.trim().toUpperCase().includes(selectedBrand))
 
   return (
-    <div className="storefront-app">
-      {/* 1. Global Navigation Bar */}
-      <header className="store-navbar">
-        <div className="navbar-container">
-          <div className="navbar-left">
-            <div className="store-logo">
-              <div className="logo-icon-bg">
-                <ShoppingBag size={22} className="logo-icon" />
-              </div>
-              <div className="logo-text-group">
-                <span className="logo-brand">SoleKart</span>
-                <span className="logo-sub">AI Store</span>
-              </div>
-            </div>
+    <div className="app-container">
+      {/* 1. Serene SVG Mountain Background */}
+      <MountainBackground />
 
-            <nav className="nav-links">
-              <button
-                className={`nav-link-btn ${selectedBrand === 'ALL' ? 'active' : ''}`}
-                onClick={() => setSelectedBrand('ALL')}
-              >
-                All Footwear
-              </button>
-              <button
-                className={`nav-link-btn ${selectedBrand === 'NIKE' ? 'active' : ''}`}
-                onClick={() => setSelectedBrand('NIKE')}
-              >
-                Nike
-              </button>
-              <button
-                className={`nav-link-btn ${selectedBrand === 'PUMA' ? 'active' : ''}`}
-                onClick={() => setSelectedBrand('PUMA')}
-              >
-                Puma
-              </button>
-              <button
-                className={`nav-link-btn ${selectedBrand === 'CAMPUS' ? 'active' : ''}`}
-                onClick={() => setSelectedBrand('CAMPUS')}
-              >
-                Campus
-              </button>
-              <button
-                className={`nav-link-btn ${selectedBrand === 'SPARX' ? 'active' : ''}`}
-                onClick={() => setSelectedBrand('SPARX')}
-              >
-                Sparx
-              </button>
-            </nav>
-          </div>
-
-          <div className="navbar-center">
-            <form onSubmit={handleSearchSubmit} className="store-search-form">
-              <Search size={18} className="search-icon" />
-              <input
-                type="text"
-                placeholder="Ask AI: 'Puma running shoes under 3000'..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <button type="submit" className="search-btn">
-                Ask AI
-              </button>
-            </form>
-          </div>
-
-          <div className="navbar-right">
-            {health && (
-              <div className="system-pill" title={`Chroma: ${health.faq_count} FAQs | SQLite: ${health.product_count} items`}>
-                <span className="live-dot"></span>
-                <span>{health.product_count} items in Catalog</span>
-              </div>
-            )}
-            <button
-              className="open-assistant-nav-btn"
-              onClick={() => setIsModalOpen(true)}
-              title="Open AI Shopping Assistant"
-            >
-              <Bot size={16} />
-              <span>AI Assistant</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* 2. Hero Section */}
-      <section className="store-hero">
-        <div className="hero-content">
-          <div className="hero-badge">
-            <Sparkles size={14} className="hero-badge-icon" />
-            <span>Agentic RAG Footwear Discovery &bull; Gemini 3.5 Flash-Lite</span>
-          </div>
-
-          <h1 className="hero-title">
-            Find the Best Shoes with <span className="highlight-text">Conversational AI</span>
-          </h1>
-
-          <p className="hero-subtitle">
-            Skip tedious filters. Ask our intelligent assistant in natural language for top-rated
-            running shoes, prices, heavy discounts, and store return policies.
-          </p>
-
-          <div className="hero-actions">
-            <button
-              className="hero-primary-btn"
-              onClick={() => triggerAssistantWithQuery('Show me top rated Nike shoes')}
-            >
-              <span>Explore Top Nike Shoes</span>
-              <ArrowRight size={16} />
-            </button>
-            <button
-              className="hero-secondary-btn"
-              onClick={() => triggerAssistantWithQuery('What is your return policy?')}
-            >
-              <span>Store Return Policy</span>
-            </button>
-          </div>
-
-          {/* Prompt Suggestion Chips */}
-          <div className="hero-prompt-chips">
-            <span className="chips-title">Popular AI Questions:</span>
-            <div className="chips-list">
-              <button
-                className="prompt-chip"
-                onClick={() => triggerAssistantWithQuery('Show me Nike shoes with rating above 4')}
-              >
-                Nike shoes rating &gt; 4
-              </button>
-              <button
-                className="prompt-chip"
-                onClick={() => triggerAssistantWithQuery('Find Puma shoes under 3000')}
-              >
-                Puma shoes under ₹3000
-              </button>
-              <button
-                className="prompt-chip"
-                onClick={() => triggerAssistantWithQuery('Are there any running shoes with 50% discount?')}
-              >
-                Running shoes 50% off
-              </button>
-              <button
-                className="prompt-chip"
-                onClick={() => triggerAssistantWithQuery('Can I pay when the product arrives at my house?')}
-              >
-                Cash on delivery policy
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3. Trust & Benefits Strip */}
-      <section className="trust-strip">
-        <div className="trust-grid">
-          <div className="trust-item">
-            <div className="trust-icon-box">
-              <Truck size={22} />
-            </div>
-            <div>
-              <h4>Free Fast Delivery</h4>
-              <p>On all footwear orders across India</p>
-            </div>
-          </div>
-
-          <div className="trust-item">
-            <div className="trust-icon-box">
-              <RotateCcw size={22} />
-            </div>
-            <div>
-              <h4>30-Day Easy Returns</h4>
-              <p>Instant refunds & hassle-free pickups</p>
-            </div>
-          </div>
-
-          <div className="trust-item">
-            <div className="trust-icon-box">
-              <ShieldCheck size={22} />
-            </div>
-            <div>
-              <h4>100% Genuine Footwear</h4>
-              <p>Direct authentic products from top brands</p>
-            </div>
-          </div>
-
-          <div className="trust-item">
-            <div className="trust-icon-box">
-              <Bot size={22} />
-            </div>
-            <div>
-              <h4>AI Powered Recommendations</h4>
-              <p>Semantic vector search & Text-to-SQL</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. Featured Catalog Showcase Grid */}
-      <main className="catalog-showcase-section">
-        <div className="section-header">
-          <div>
-            <h2 className="section-title">
-              Featured Top-Rated Shoes
-            </h2>
-            <p className="section-subtitle">
-              Ranked by high customer ratings and verified review counts from SQLite
-            </p>
-          </div>
+      {/* 2. Floating Launcher Button with Circling Dot Animation (Shown when minimized) */}
+      {!isOpen && (
+        <div className="launcher-dock">
           <button
-            className="filter-ai-btn"
-            onClick={() => triggerAssistantWithQuery('Show me the best products in the catalog')}
+            className="circling-launcher-btn"
+            onClick={() => setIsOpen(true)}
+            title="Open AI Shopping Assistant"
+            aria-label="Open AI Assistant"
           >
-            <Sparkles size={14} className="mr-1" />
-            <span>Ask AI to Recommend</span>
+            {/* Animated Circling Glow Ring */}
+            <span className="radar-ring-outer"></span>
+            <span className="radar-ring-inner"></span>
+
+            <div className="launcher-icon">
+              <Sparkles size={20} className="sparkle-svg" />
+            </div>
+            <span className="launcher-label">Ask AI Assistant</span>
+            <span className="live-status-dot" title="Assistant Online"></span>
           </button>
         </div>
+      )}
 
-        <div className="catalog-grid">
-          {filteredProducts.map((product, idx) => {
-            const discountLabel = formatDiscount(product.discount)
-            return (
-              <div key={idx} className="showcase-card">
-                <div className="showcase-card-visual">
-                  <div className="showcase-placeholder">
-                    <Package size={44} className="placeholder-icon" />
-                    <span className="brand-badge-overlay">{product.brand || 'Footwear'}</span>
-                  </div>
-
-                  {discountLabel && (
-                    <span className="showcase-discount-tag">
-                      <Tag size={11} className="mr-1" />
-                      {discountLabel}
-                    </span>
-                  )}
+      {/* 3. The Dedicated Chat UI (Modal or Full Screen) */}
+      {isOpen && (
+        <div className={`chat-window-wrapper ${isMaximized ? 'maximized' : 'modal-mode'}`}>
+          <div className="chat-window-card">
+            {/* Chat Header */}
+            <header className="chat-window-header">
+              <div className="header-title-box">
+                <div className="header-bot-badge">
+                  <Bot size={18} />
                 </div>
+                <div>
+                  <h3 className="header-app-title">AI Shopping Assistant</h3>
+                  <div className="header-status-line">
+                    <span className="status-indicator-green"></span>
+                    <span>
+                      {health ? `${health.model} • ${health.product_count} products` : 'Online'}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-                <div className="showcase-card-body">
-                  <div className="showcase-meta-row">
-                    <span className="showcase-brand">{product.brand}</span>
-                    {product.avg_rating && (
-                      <div className="showcase-rating">
-                        <Star size={13} className="star-icon fill-gold" />
-                        <span className="rating-value">{product.avg_rating}</span>
-                        {product.total_ratings ? (
-                          <span className="reviews-count">({formatReviewsCount(product.total_ratings)})</span>
-                        ) : null}
+              {/* Header Action Controls */}
+              <div className="header-controls">
+                <button
+                  className="control-icon-btn"
+                  onClick={clearChat}
+                  title="Clear conversation"
+                  aria-label="Clear chat"
+                >
+                  <Trash2 size={15} />
+                </button>
+
+                {/* Maximize / Restore Button */}
+                <button
+                  className="control-icon-btn"
+                  onClick={() => setIsMaximized(!isMaximized)}
+                  title={isMaximized ? 'Restore to compact modal' : 'Maximize to full screen'}
+                  aria-label={isMaximized ? 'Restore' : 'Maximize'}
+                >
+                  {isMaximized ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+                </button>
+
+                {/* Minimize Down to Launcher Button */}
+                <button
+                  className="control-icon-btn"
+                  onClick={() => setIsOpen(false)}
+                  title="Minimize chat"
+                  aria-label="Minimize"
+                >
+                  <Minus size={16} />
+                </button>
+
+                {/* Close Button */}
+                <button
+                  className="control-icon-btn close-btn"
+                  onClick={() => setIsOpen(false)}
+                  title="Close chat"
+                  aria-label="Close"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            </header>
+
+            {/* Chat Messages Body */}
+            <main className="chat-window-messages">
+              {messages.map((msg) => (
+                <div key={msg.id} className={`chat-msg-row ${msg.role}`}>
+                  {msg.role === 'assistant' && (
+                    <div className="msg-avatar assistant" title="Assistant">
+                      <Bot size={16} />
+                    </div>
+                  )}
+
+                  <div className="msg-bubble-container">
+                    <div className="msg-bubble">
+                      {msg.route === 'fallback' && msg.content.startsWith('Error:') ? (
+                        <div className="error-wrapper">
+                          <AlertCircle size={15} className="text-danger mr-1" />
+                          <FormattedContent text={msg.content} />
+                        </div>
+                      ) : (
+                        <FormattedContent text={msg.content} />
+                      )}
+
+                      {/* Meta Information Pills */}
+                      <div className="msg-meta-bar">
+                        {msg.route && msg.route !== 'system' && (
+                          <span className={`meta-route-pill ${msg.route}`}>
+                            <Navigation size={10} className="mr-1" />
+                            <span>{msg.route.toUpperCase()}</span>
+                          </span>
+                        )}
+                        {msg.elapsedSeconds !== undefined && (
+                          <span className="meta-time-pill">
+                            <Zap size={10} className="mr-1 text-warning" />
+                            <span>{msg.elapsedSeconds}s</span>
+                          </span>
+                        )}
+                        {msg.timestamp && <span className="meta-timestamp">{msg.timestamp}</span>}
                       </div>
+                    </div>
+
+                    {/* Horizontal Scrollable Product Carousel */}
+                    {msg.products && msg.products.length > 0 && (
+                      <ProductCarousel products={msg.products} />
                     )}
                   </div>
 
-                  <h3 className="showcase-title" title={product.title}>
-                    {product.title}
-                  </h3>
-
-                  <div className="showcase-footer">
-                    <div className="showcase-price">
-                      <span className="currency-symbol">₹</span>
-                      <span className="amount-num">
-                        {typeof product.price === 'number'
-                          ? product.price.toLocaleString('en-IN')
-                          : product.price}
-                      </span>
+                  {msg.role === 'user' && (
+                    <div className="msg-avatar user" title="You">
+                      <User size={16} />
                     </div>
+                  )}
+                </div>
+              ))}
 
-                    <div className="showcase-cta-group">
-                      <button
-                        className="card-ai-btn"
-                        onClick={() => triggerAssistantWithQuery(`Tell me about ${product.brand} ${product.title}`)}
-                        title="Ask AI Assistant about this shoe"
-                      >
-                        <Bot size={14} />
-                      </button>
-
-                      {product.product_link && (
-                        <a
-                          href={product.product_link}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="card-buy-btn"
-                          title="View on Flipkart"
-                        >
-                          <span>Buy</span>
-                          <ExternalLink size={13} />
-                        </a>
-                      )}
+              {isLoading && (
+                <div className="chat-msg-row assistant">
+                  <div className="msg-avatar assistant">
+                    <Bot size={16} />
+                  </div>
+                  <div className="msg-bubble loading-state">
+                    <div className="pulse-dots">
+                      <span></span>
+                      <span></span>
+                      <span></span>
                     </div>
+                    <span className="loading-caption">Thinking and retrieving from database...</span>
                   </div>
                 </div>
+              )}
+              <div ref={messagesEndRef} />
+            </main>
+
+            {/* Interactive Suggestion Chips */}
+            {suggestions.length > 0 && messages.length <= 2 && (
+              <div className="chat-suggestions-dock">
+                <span className="dock-label">Try asking:</span>
+                <div className="dock-chips-scroll">
+                  {suggestions.map((item, idx) => (
+                    <button
+                      key={idx}
+                      className="suggestion-chip-btn"
+                      onClick={() => handleSend(item.text)}
+                      disabled={isLoading}
+                    >
+                      <span className="chip-badge">{item.category}</span>
+                      <span className="chip-text">{item.text}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            )
-          })}
-        </div>
-      </main>
+            )}
 
-      {/* 5. Store Footer */}
-      <footer className="store-footer">
-        <div className="footer-content">
-          <div className="footer-brand-col">
-            <div className="footer-logo">
-              <ShoppingBag size={20} className="text-emerald" />
-              <span>SoleKart AI</span>
-            </div>
-            <p>
-              Next-generation e-commerce shopping experience combining ChromaDB vector FAQ retrieval
-              and Gemini Text-to-SQL catalog search.
-            </p>
-          </div>
-
-          <div className="footer-col">
-            <h4>Store Policies</h4>
-            <ul>
-              <li><button onClick={() => triggerAssistantWithQuery('What is your return policy?')}>30-Day Return Policy</button></li>
-              <li><button onClick={() => triggerAssistantWithQuery('What payment methods do you accept?')}>Payment Options & COD</button></li>
-              <li><button onClick={() => triggerAssistantWithQuery('Can I exchange my footwear size?')}>Size Exchange</button></li>
-            </ul>
-          </div>
-
-          <div className="footer-col">
-            <h4>Popular Searches</h4>
-            <ul>
-              <li><button onClick={() => triggerAssistantWithQuery('Show me top Nike running shoes')}>Nike Running Shoes</button></li>
-              <li><button onClick={() => triggerAssistantWithQuery('Find Puma shoes under 3000')}>Puma Under ₹3000</button></li>
-              <li><button onClick={() => triggerAssistantWithQuery('Find Campus walking shoes')}>Campus Walking Shoes</button></li>
-            </ul>
-          </div>
-
-          <div className="footer-col">
-            <h4>System Architecture</h4>
-            <p className="architecture-notes">
-              Router: <strong>Semantic Router</strong><br />
-              FAQ RAG: <strong>ChromaDB + all-MiniLM-L6-v2</strong><br />
-              Text-to-SQL: <strong>Gemini 3.5 Flash-Lite (Pydantic)</strong><br />
-              Database: <strong>SQLite (900+ Products)</strong>
-            </p>
+            {/* Chat Input Footer */}
+            <footer className="chat-window-footer">
+              <div className="input-field-wrapper">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="Ask about Nike, Puma, prices, discounts, or store policies..."
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isLoading}
+                  autoFocus
+                />
+                <button
+                  className="send-msg-btn"
+                  onClick={() => handleSend(input)}
+                  disabled={!input.trim() || isLoading}
+                  title="Send message"
+                  aria-label="Send"
+                >
+                  <Send size={16} />
+                </button>
+              </div>
+            </footer>
           </div>
         </div>
-
-        <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} SoleKart AI. All rights reserved. Zero emojis &bull; 100% SVG Icons.</p>
-        </div>
-      </footer>
-
-      {/* 6. Professional Floating AI Assistant Modal with Circling Dot Animation */}
-      <AIAssistantModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onToggle={() => setIsModalOpen(!isModalOpen)}
-        initialQuery={modalInitialQuery}
-      />
+      )}
     </div>
   )
 }
