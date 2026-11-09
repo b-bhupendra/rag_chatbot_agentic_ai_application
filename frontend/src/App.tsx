@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import './App.css'
 import type { Message, HealthInfo, SuggestionItem } from './types'
 import { sendChatMessage, getHealth, getSuggestions } from './api'
+import { AssistantModal } from './components/AssistantModal'
 
 // Simple markdown & link renderer
 function FormattedContent({ text }: { text: string }) {
@@ -236,6 +237,8 @@ export function App() {
           </button>
         </div>
       </footer>
+      {/* Assistant UI Floating Widget Modal */}
+      <AssistantModal />
     </div>
   )
 }

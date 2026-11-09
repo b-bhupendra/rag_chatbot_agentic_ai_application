@@ -27,3 +27,4 @@ export interface SuggestionItem {
   text: string;
   category: string;
 }
+

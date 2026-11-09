@@ -10,11 +10,15 @@ sentence-transformers
 # Google GenAI & LangChain (Text-to-SQL & LLM)
 langchain
 langchain-google-genai
-google-generativeai
+google-genai
 
-# Front-End UI
-streamlit
-
-# Environment Variables
+# Settings & Environment
+pydantic-settings
 python-dotenv
 
+# API Server
+fastapi
+uvicorn
+
+# Streamlit Interface
+streamlit
